@@ -1,9 +1,25 @@
-import { db } from "@/lib/db/client"
+import { db, sqlite } from "@/lib/db/client"
 import { components, categories, componentTags, tags } from "@/lib/db/schema"
 import { eq, desc, like, or, and, sql } from "drizzle-orm"
 import { z } from "zod"
 
+async function ensureSeeded() {
+  try {
+    const row = (sqlite as any).prepare("SELECT COUNT(*) as c FROM categories").get() as any
+    if (!row || row.c === 0) {
+      console.log("[API] DB empty in /api/components, seeding...")
+      const { seedIfNeeded } = await import("@/lib/seed/run")
+      await seedIfNeeded()
+      console.log("[API] Seed done for /api/components")
+    }
+  } catch (e) {
+    console.log("[API] Seed check error", e)
+  }
+}
+
 export async function GET(req: Request) {
+  await ensureSeeded()
+
   const { searchParams } = new URL(req.url)
   const search = searchParams.get("search")?.trim()
   const category = searchParams.get("category")
@@ -41,7 +57,6 @@ export async function GET(req: Request) {
     conditions.push(eq(components.featured, true))
   }
 
-  // Sorting
   let orderBy
   switch (sort) {
     case "popular":
@@ -68,10 +83,8 @@ export async function GET(req: Request) {
     .limit(limit)
     .offset(offset)
 
-  // For tag filtering we need post-filter or join - simplified: if tag filter, fetch and filter ids
   let filtered = results
   if (tag) {
-    // get component ids with tag
     const tagged = await db.select({ compId: componentTags.componentId })
       .from(componentTags)
       .leftJoin(tags, eq(componentTags.tagId, tags.id))
@@ -80,7 +93,6 @@ export async function GET(req: Request) {
     filtered = results.filter((r: any) => ids.has(r.component.id))
   }
 
-  // Fetch tags for each component (N+1 but ok for MVP, could be batched)
   const enriched = await Promise.all(filtered.map(async (row: any) => {
     const compTags = await db.select({ tag: tags })
       .from(componentTags)
@@ -104,7 +116,7 @@ const componentSchema = z.object({
   slug: z.string().min(3),
   description: z.string().min(10),
   categoryId: z.string(),
-  htmlCode: z.string(),
+  htmlCode: z.string().min(1),
   cssCode: z.string().optional().default(""),
   jsCode: z.string().optional().default(""),
   license: z.string().optional().default("MIT"),
@@ -115,10 +127,9 @@ const componentSchema = z.object({
 
 export async function POST(req: Request) {
   try {
-    // Admin check
     const { getCurrentUser } = await import("@/lib/auth/guard")
     const user = await getCurrentUser()
-    if (!user || user.role !== "admin") return Response.json({ error: "Forbidden" }, { status: 403 })
+    if (!user) return Response.json({ error: "Please login to publish" }, { status: 401 })
 
     const body = await req.json()
     const parsed = componentSchema.safeParse(body)
@@ -128,10 +139,13 @@ export async function POST(req: Request) {
     const { nanoid } = await import("nanoid")
     const id = nanoid()
 
+    const baseSlug = rest.slug.toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'') || rest.title.toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'')
+    const finalSlug = `${baseSlug}-${nanoid(4).toLowerCase()}`
+
     const [comp] = await db.insert(components).values({
       id,
       title: rest.title,
-      slug: rest.slug,
+      slug: finalSlug,
       description: rest.description,
       categoryId: rest.categoryId,
       htmlCode: rest.htmlCode,
@@ -139,8 +153,8 @@ export async function POST(req: Request) {
       jsCode: rest.jsCode || "",
       authorId: user.id,
       license: rest.license,
-      featured: rest.featured || false,
-      published: rest.published ?? true,
+      featured: user.role === "admin" ? (rest.featured || false) : false,
+      published: true,
       createdAt: new Date(),
       updatedAt: new Date(),
     }).returning()
@@ -152,8 +166,11 @@ export async function POST(req: Request) {
     }
 
     return Response.json(comp, { status: 201 })
-  } catch (e) {
-    console.error(e)
-    return Response.json({ error: "Server error" }, { status: 500 })
+  } catch (e: any) {
+    console.error("POST /api/components error", e)
+    if (e.message?.includes("UNIQUE constraint")) {
+      return Response.json({ error: "Slug already exists, try different title" }, { status: 409 })
+    }
+    return Response.json({ error: "Server error: " + e.message }, { status: 500 })
   }
 }

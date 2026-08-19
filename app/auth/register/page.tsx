@@ -5,25 +5,35 @@ import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { toast } from "@/components/ui/toaster"
+import { useAuth } from "@/components/layout/auth-provider"
 
 export default function RegisterPage() {
   const [form, setForm] = useState({ email: "", username: "", password: "" })
   const [loading, setLoading] = useState(false)
   const router = useRouter()
+  const { refresh } = useAuth()
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setLoading(true)
     try {
-      const res = await fetch("/api/auth/register", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(form) })
+      const res = await fetch("/api/auth/register", { 
+        method: "POST", 
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify(form) 
+      })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || "Failed")
-      toast("Account created!")
-      router.push("/")
-      router.refresh()
+      toast("Account created! ✅")
+      await refresh()
+      setTimeout(() => {
+        window.location.href = "/"
+      }, 300)
     } catch (e: any) {
       toast(e.message)
-    } finally { setLoading(false) }
+      setLoading(false)
+    }
   }
 
   return (

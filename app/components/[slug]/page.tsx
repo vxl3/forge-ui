@@ -1,22 +1,39 @@
-import { db } from "@/lib/db/client"
+import { db, sqlite } from "@/lib/db/client"
 import { components, categories, componentTags, tags } from "@/lib/db/schema"
 import { eq } from "drizzle-orm"
 import { notFound } from "next/navigation"
 import { ComponentDetail } from "./detail-client"
 import { getCurrentUser } from "@/lib/auth/guard"
 
+async function ensureSeeded() {
+  try {
+    const row = (sqlite as any).prepare("SELECT COUNT(*) as c FROM categories").get() as any
+    if (!row || row.c === 0) {
+      const { seedIfNeeded } = await import("@/lib/seed/run")
+      await seedIfNeeded()
+    }
+  } catch {}
+}
+
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params
-  const [row] = await db.select().from(components).where(eq(components.slug, slug)).limit(1)
-  if (!row) return { title: "Not found" }
-  return {
-    title: `${row.title} — ForgeUI`,
-    description: row.description,
+  try {
+    await ensureSeeded()
+    const [row] = await db.select().from(components).where(eq(components.slug, slug)).limit(1)
+    if (!row) return { title: "Not found" }
+    return {
+      title: `${row.title} — ForgeUI`,
+      description: row.description,
+    }
+  } catch {
+    return { title: "ForgeUI" }
   }
 }
 
 export default async function ComponentPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params
+  await ensureSeeded()
+
   const [row] = await db.select({
     component: components,
     category: categories,
@@ -34,7 +51,6 @@ export default async function ComponentPage({ params }: { params: Promise<{ slug
 
   const user = await getCurrentUser()
 
-  // Check if liked/favorited (if user exists, we can fetch)
   let liked = false
   let favorited = false
   if (user) {

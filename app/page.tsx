@@ -1,6 +1,6 @@
 import { Navbar } from "@/components/layout/navbar"
 import { Hero } from "@/components/home/hero"
-import { db } from "@/lib/db/client"
+import { db, sqlite } from "@/lib/db/client"
 import { components, categories } from "@/lib/db/schema"
 import { eq, desc } from "drizzle-orm"
 import { ComponentCard } from "@/components/library/component-card"
@@ -8,7 +8,18 @@ import Link from "next/link"
 import { getCurrentUser } from "@/lib/auth/guard"
 import { ArrowRight, Sparkles, TrendingUp, Clock, Heart } from "lucide-react"
 
+async function ensureSeeded() {
+  try {
+    const row = (sqlite as any).prepare("SELECT COUNT(*) as c FROM categories").get() as any
+    if (!row || row.c === 0) {
+      const { seedIfNeeded } = await import("@/lib/seed/run")
+      await seedIfNeeded()
+    }
+  } catch {}
+}
+
 async function getSections() {
+  await ensureSeeded()
   const popular = await db.select().from(components).where(eq(components.published, true)).orderBy(desc(components.views)).limit(8)
   const latest = await db.select().from(components).where(eq(components.published, true)).orderBy(desc(components.createdAt)).limit(8)
   const featured = await db.select().from(components).where(eq(components.featured, true)).limit(6)

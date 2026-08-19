@@ -60,3 +60,9 @@ data.db-*
 
 # custom
 /tmp/
+
+# extra
+.npm/
+.config/
+uploads/
+*.log

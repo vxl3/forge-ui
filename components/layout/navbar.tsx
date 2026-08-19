@@ -2,9 +2,9 @@
 import { useUIStore } from "@/lib/store/ui-store"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Moon, Sun, Search, Heart, User, Menu, X, LayoutDashboard, LogOut, Boxes } from "lucide-react"
+import { Moon, Sun, Search, Heart, Menu, X, LayoutDashboard, LogOut, Plus } from "lucide-react"
 import Link from "next/link"
-import { useState, useEffect } from "react"
+import { useState } from "react"
 import { useRouter } from "next/navigation"
 
 interface NavbarProps {
@@ -24,8 +24,8 @@ export function Navbar({ user }: NavbarProps) {
   }
 
   const handleLogout = async () => {
-    await fetch("/api/auth/logout", { method: "POST" })
-    router.refresh()
+    await fetch("/api/auth/logout", { method: "POST", credentials: "include" })
+    window.location.href = "/"
   }
 
   return (
@@ -62,6 +62,12 @@ export function Navbar({ user }: NavbarProps) {
 
         {/* Actions */}
         <div className="flex items-center gap-1.5">
+          <Link href="/submit" className="hidden sm:flex">
+            <Button size="sm" className="rounded-[10px] gap-1.5 h-9">
+              <Plus className="w-4 h-4" /> Publish
+            </Button>
+          </Link>
+
           <Button variant="ghost" size="icon" className="hidden sm:flex" onClick={() => setLang(lang === "en" ? "ar" : "en")}>
             <span className="text-xs font-bold">{lang === "en" ? "EN" : "AR"}</span>
           </Button>
@@ -115,10 +121,11 @@ export function Navbar({ user }: NavbarProps) {
           </form>
           <nav className="grid gap-1">
             <Link href="/components" onClick={() => setMobileOpen(false)} className="px-3 py-2.5 rounded-[10px] hover:bg-zinc-100 dark:hover:bg-zinc-800 font-medium">Components</Link>
+            <Link href="/submit" onClick={() => setMobileOpen(false)} className="px-3 py-2.5 rounded-[10px] bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 font-medium flex items-center gap-2"><Plus className="w-4 h-4" /> Publish Your Work</Link>
             <Link href="/favorites" onClick={() => setMobileOpen(false)} className="px-3 py-2.5 rounded-[10px] hover:bg-zinc-100 dark:hover:bg-zinc-800 font-medium">Favorites</Link>
             {user?.role === "admin" && <Link href="/admin" onClick={() => setMobileOpen(false)} className="px-3 py-2.5 rounded-[10px] hover:bg-zinc-100 dark:hover:bg-zinc-800 font-medium">Admin</Link>}
             {user ? (
-              <button onClick={() => { setMobileOpen(false); handleLogout() }} className="text-left px-3 py-2.5 rounded-[10px] hover:bg-zinc-100 dark:hover:bg-zinc-800 font-medium">Logout</button>
+              <button onClick={() => { setMobileOpen(false); handleLogout() }} className="text-left px-3 py-2.5 rounded-[10px] hover:bg-zinc-100 dark:hover:bg-zinc-800 font-medium">Logout ({user.username})</button>
             ) : (
               <>
                 <Link href="/auth/login" onClick={() => setMobileOpen(false)} className="px-3 py-2.5 rounded-[10px] bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 text-center font-medium">Login</Link>
