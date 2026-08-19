@@ -1,0 +1,49 @@
+"use client"
+import { useState } from "react"
+import Link from "next/link"
+import { useRouter } from "next/navigation"
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { toast } from "@/components/ui/toaster"
+
+export default function LoginPage() {
+  const [form, setForm] = useState({ emailOrUsername: "", password: "" })
+  const [loading, setLoading] = useState(false)
+  const router = useRouter()
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setLoading(true)
+    try {
+      const res = await fetch("/api/auth/login", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(form) })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || "Login failed")
+      toast("Welcome back!")
+      router.push("/")
+      router.refresh()
+    } catch (e: any) {
+      toast(e.message)
+    } finally { setLoading(false) }
+  }
+
+  return (
+    <div className="min-h-screen grid place-items-center bg-[#fcfcfc] dark:bg-[#0a0a0b] px-6">
+      <div className="w-full max-w-[380px]">
+        <Link href="/" className="flex items-center gap-2 font-semibold mb-8"><div className="w-7 h-7 rounded-[8px] bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 grid place-items-center text-sm">F</div>ForgeUI</Link>
+        <div className="rounded-[20px] border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-8 shadow-[0_8px_32px_rgba(0,0,0,0.06)]">
+          <h1 className="text-[22px] font-semibold tracking-tight">Welcome back</h1>
+          <p className="text-sm text-zinc-500 mt-1">Sign in to your account</p>
+          <form onSubmit={handleSubmit} className="mt-6 space-y-4">
+            <div><label className="text-xs font-medium">Email or Username</label><Input className="mt-1.5" value={form.emailOrUsername} onChange={e => setForm({ ...form, emailOrUsername: e.target.value })} required /></div>
+            <div><label className="text-xs font-medium">Password</label><Input type="password" className="mt-1.5" value={form.password} onChange={e => setForm({ ...form, password: e.target.value })} required /></div>
+            <Button type="submit" className="w-full h-11 rounded-[12px]" disabled={loading}>{loading ? "Signing in..." : "Continue"}</Button>
+          </form>
+          <div className="mt-6 text-center text-sm text-zinc-500">Don't have an account? <Link href="/auth/register" className="text-zinc-900 dark:text-white font-medium underline">Sign up</Link></div>
+          <div className="mt-4 p-3 rounded-[10px] bg-zinc-50 dark:bg-zinc-800 text-xs text-zinc-600 dark:text-zinc-400">
+            Admin demo: admin@forgeui.com / admin123
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
